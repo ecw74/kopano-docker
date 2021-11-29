@@ -1,534 +1,85 @@
 version: "3.5"
 
 services:
-  web:
-    image: ${docker_repo:-zokradonh}/kopano_web:${KWEB_VERSION:-latest}
-    read_only: true
-    restart: unless-stopped
-    environment:
-      - DEFAULTREDIRECT=${DEFAULTREDIRECT:-/webapp}
-      - EMAIL=${EMAIL:-off}
-      - FQDN=${FQDN}
-      - TLS_MODE=tls_auto
-    volumes:
-      - /etc/machine-id:/etc/machine-id
-      - /etc/machine-id:/var/lib/dbus/machine-id
-      - web:/.kweb
-    networks:
-      web-net:
-        aliases:
-          - ${FQDNCLEANED:-domain.invalid}
 
-  kopano_ssl:
-    image: ${docker_repo:-zokradonh}/kopano_ssl:${SSL_VERSION:-latest}
-    read_only: true
-    environment:
-      - FQDN=${FQDN}
-      - PKI_COUNTRY=NL
-    env_file:
-      - kopano_ssl.env
-    volumes:
-      - kopanossl/:/kopano/ssl
-    tmpfs:
-      - /kopano/easypki/
-
-  kopano_server:
-    image: ${docker_repo:-zokradonh}/kopano_core:${CORE_VERSION:-latest}
-    read_only: true # in case additional packages need to be installed this option should be set to false
-    restart: unless-stopped
-    hostname: kopano_server
-    container_name: ${COMPOSE_PROJECT_NAME}_server
-    depends_on:
-      - kopano_konnect
-      - kopano_ssl
-    environment:
-      - ADDITIONAL_KOPANO_PACKAGES=${ADDITIONAL_KOPANO_PACKAGES}
-      - KCCOMMENT_LDAP_1=${KCCOMMENT_LDAP_1}
-      - KCCONF_ADMIN_DEFAULT_STORE_LOCALE=${MAILBOXLANG:-en_US.UTF-8} # Hint: if additional locales are required these should be added in base/Dockerfile
-      - KCCONF_LDAP_LDAP_BIND_PASSWD=${LDAP_BIND_PW}
-      - KCCONF_LDAP_LDAP_BIND_USER=${LDAP_BIND_DN}
-      - KCCONF_LDAP_LDAP_SEARCH_BASE=${LDAP_SEARCH_BASE}
-      - KCCONF_LDAP_LDAP_URI=${LDAP_SERVER}
-      - KCCONF_SERVER_ATTACHMENT_PATH=/kopano/data/attachments
-      - KCCONF_SERVER_COREDUMP_ENABLED=no
-      - KCCONF_SERVER_ENABLE_SSO=yes
-      - KCCONF_SERVER_KCOIDC_INSECURE_SKIP_VERIFY=${INSECURE}
-      - KCCONF_SERVER_KCOIDC_ISSUER_IDENTIFIER=https://${FQDN}
-      - KCCONF_SERVER_LOG_LEVEL=3
-      - KCCONF_SERVER_LOG_TIMESTAMP=0
-      - KCCONF_SERVER_MYSQL_DATABASE=${MYSQL_DATABASE}
-      - KCCONF_SERVER_MYSQL_HOST=${MYSQL_HOST}
-      - KCCONF_SERVER_MYSQL_PASSWORD=${MYSQL_PASSWORD}
-      - KCCONF_SERVER_MYSQL_PORT=3306
-      - KCCONF_SERVER_MYSQL_USER=${MYSQL_USER}
-      - KCCONF_SERVER_PROXY_HEADER=*  # delete line if webapp is not behind reverse proxy
-      - KCCONF_SERVER_SERVER_LISTEN_TLS=0.0.0.0:237
-      - KCCONF_SERVER_SERVER_LISTEN=0.0.0.0:236
-      - KCCONF_SERVER_SERVER_NAME=Kopano
-      - KCCONF_SERVER_SERVER_SSL_CA_FILE=/kopano/ssl/ca.pem
-      - KCCONF_SERVER_SERVER_SSL_KEY_FILE=/kopano/ssl/kopano_server.pem
-      - KCCONF_SERVER_SOFTDELETE_LIFETIME=0
-      - KCCONF_SERVER_SSLKEYS_PATH=/kopano/ssl/clients
-      - KCCONF_SERVER_SYNC_GAB_REALTIME=no
-      - KCCONF_SERVER_SYSTEM_EMAIL_ADDRESS=${POSTMASTER_ADDRESS}
-      - KCCONF_SERVER_USER_PLUGIN_CONFIG=/tmp/kopano/ldap.cfg
-      - KCCONF_SERVER_USER_PLUGIN=ldap
-      - KCUNCOMMENT_LDAP_1=${KCUNCOMMENT_LDAP_1}
-      - SERVICE_TO_START=server
-      - TZ=${TZ}
-    env_file:
-      - kopano_server.env
-    networks:
-      - kopano-net
-      - web-net
-    volumes:
-      - /etc/machine-id:/etc/machine-id
-      - /etc/machine-id:/var/lib/dbus/machine-id
-      - kopanodata/:/kopano/data
-      - kopanosocket/:/run/kopano
-      - kopanossl/:/kopano/ssl
-    tmpfs:
-      - /tmp/
-
-  kopano_webapp:
-    image: ${docker_repo:-zokradonh}/kopano_webapp:${WEBAPP_VERSION:-latest}
-    read_only: true # in case additional packages need to be installed this option should be set to false
-    restart: unless-stopped
-    hostname: kopano_webapp
-    depends_on:
-      - kopano_server
-    volumes:
-      - /etc/machine-id:/etc/machine-id
-      - /etc/machine-id:/var/lib/dbus/machine-id
-      - kopanosocket/:/run/kopano
-      - kopanossl/:/kopano/ssl
-      - kopanowebapp/:/var/lib/kopano-webapp/
-    environment:
-      - ADDITIONAL_KOPANO_WEBAPP_PLUGINS=${ADDITIONAL_KOPANO_WEBAPP_PLUGINS}
-      - KCCONF_WEBAPP_OIDC_CLIENT_ID=webapp
-      - KCCONF_WEBAPP_OIDC_ISS=https://${FQDN}
-      - KCCONF_WEBAPP_CLIENT_TIMEOUT=0 # needed to set to 0 to work around an oidc bug KW-3398
-      - TZ=${TZ}
-    env_file:
-      - kopano_webapp.env
-    networks:
-      - kopano-net
-      - web-net
-    tmpfs:
-      - /run/php/
-      - /run/sessions/
-      - /tmp/
-      - /var/lib/kopano-webapp/plugin_files
-      - /var/log/
-
-  kopano_zpush:
-    image: ${docker_repo:-zokradonh}/kopano_zpush:${ZPUSH_VERSION:-latest}
-    read_only: true
-    restart: unless-stopped
-    hostname: kopano_zpush
-    container_name: ${COMPOSE_PROJECT_NAME}_zpush
-    depends_on:
-      - kopano_server
-    volumes:
-      - /etc/machine-id:/etc/machine-id
-      - /etc/machine-id:/var/lib/dbus/machine-id
-      - kopanosocket/:/run/kopano
-      - kopanossl/:/kopano/ssl
-      - zpushstates/:/var/lib/z-push/
-    environment:
-      - TZ=${TZ}
-      # Shared folders automatically assigned to all users in the format: [{"name":"<folder name>","id":"<kopano folder id>","type":"<type>","flags":"<flags>"},...]
-      # For more information on the parameters see the z-push-admin help for the addshared-action.
-      - ZPUSH_ADDITIONAL_FOLDERS=[]
-    env_file:
-      - kopano_zpush.env
-    networks:
-      - kopano-net
-      - web-net
-    tmpfs:
-      - /tmp/
-      - /run/sessions/
-      - /run/php/
-      - /var/log/
-
-  kopano_grapi:
-    image: ${docker_repo:-zokradonh}/kopano_core:${CORE_VERSION:-latest}
-    read_only: true
-    restart: unless-stopped
-    container_name: ${COMPOSE_PROJECT_NAME}_grapi
-    depends_on:
-      - kopano_server
-    volumes:
-      - /etc/machine-id:/etc/machine-id
-      - /etc/machine-id:/var/lib/dbus/machine-id
-      - kopanograpi/:/var/lib/kopano-grapi
-      - kopanosocket/:/run/kopano
-    environment:
-      - KCCONF_GRAPI_ENABLE_EXPERIMENTAL_ENDPOINTS=no # needs to be set to yes for grapi versions prior to 10.3 to use calendar
-      - KCCONF_GRAPI_INSECURE=${INSECURE}
-      - KCCONF_GRAPI_PERSISTENCY_PATH=/var/lib/kopano-grapi
-      - SERVICE_TO_START=grapi
-      - TZ=${TZ}
-    env_file:
-      - kopano_grapi.env
-    networks:
-      - kopano-net
-      - web-net
-    tmpfs:
-      - /tmp/
-
-  kopano_kapi:
-    image: ${docker_repo:-zokradonh}/kopano_core:${CORE_VERSION:-latest}
-    read_only: true
-    restart: unless-stopped
-    container_name: ${COMPOSE_PROJECT_NAME}_kapi
-    depends_on:
-      - kopano_grapi
-    volumes:
-      - /etc/machine-id:/etc/machine-id
-      - /etc/machine-id:/var/lib/dbus/machine-id
-      - kopanodata/:/kopano/data
-      - kopanosocket/:/run/kopano
-      - kopanossl/:/kopano/ssl
-    environment:
-      - DEFAULT_PLUGIN_PUBS_SECRET_KEY_FILE=/kopano/ssl/kapid-pubs-secret.key
-      - KCCONF_KAPID_INSECURE=${INSECURE}
-      - KCCONF_KAPID_LISTEN=0.0.0.0:8039
-      - KCCONF_KAPID_LOG_LEVEL=DEBUG
-      - KCCONF_KAPID_LOG_LEVEL=info
-      - KCCONF_KAPID_OIDC_ISSUER_IDENTIFIER=https://${FQDN}
-      - KCCONF_KAPID_PLUGIN_GRAPI_SOCKET_PATH=/var/run/kopano/grapi
-      - KCCONF_KAPID_PLUGIN_KVS_DB_DATASOURCE=/kopano/data/kapi-kvs/kvs.db
-      - SERVICE_TO_START=kapi
-      - TZ=${TZ}
-    env_file:
-      - kopano_kapi.env
-    networks:
-      - kopano-net
-      - web-net
-    tmpfs:
-      - /tmp
-
-  kopano_kapps:
-    image: ${docker_repo:-zokradonh}/kopano_kapps:${KAPPS_VERSION:-latest}
-    read_only: true
-    restart: unless-stopped
-    environment:
-      - SERVICE_TO_START=kapps
-    env_file:
-      - kopano_kapps.env
-    depends_on:
-      - kopano_kapi
-      - kopano_konnect
-      - web
-    volumes:
-      - /etc/machine-id:/etc/machine-id
-      - /etc/machine-id:/var/lib/dbus/machine-id
-    networks:
-      - web-net
-    tmpfs:
-      - /tmp
-
-  kopano_kdav:
-    image: ${docker_repo:-zokradonh}/kopano_kdav:${KDAV_VERSION:-latest}
-    read_only: true
-    restart: unless-stopped
-    hostname: kopano_kdav
-    container_name: ${COMPOSE_PROJECT_NAME}_kdav
-    depends_on:
-      - kopano_server
-    volumes:
-      - /etc/machine-id:/etc/machine-id
-      - /etc/machine-id:/var/lib/dbus/machine-id
-      - kdavstates/:/var/lib/kopano/kdav
-      - kopanosocket/:/run/kopano
-      - kopanossl/:/kopano/ssl
-    environment:
-      - TZ=${TZ}
-    networks:
-      - kopano-net
-      - web-net
-    tmpfs:
-      - /run/php/
-      - /run/sessions/
-      - /tmp
-      - /var/log/kdav/
-
-  kopano_dagent:
-    image: ${docker_repo:-zokradonh}/kopano_core:${CORE_VERSION:-latest}
-    read_only: true
-    restart: unless-stopped
-    depends_on:
-      - kopano_server
-    volumes:
-      - /etc/machine-id:/etc/machine-id
-      - /etc/machine-id:/var/lib/dbus/machine-id
-      - kopanosocket/:/run/kopano
-      - kopanossl/:/kopano/ssl
-    environment:
-      - KCCONF_AUTORESPOND_SENDDB=/tmp/autorespond.db
-      - KCCONF_DAGENT_AUTORESPONDER=/usr/local/bin/kopano-autorespond
-      - KCCONF_DAGENT_LMTP_LISTEN=0.0.0.0:2003
-      - KCCONF_DAGENT_LOG_LEVEL=3
-      - KCCONF_DAGENT_LOG_TIMESTAMP=0
-      - KCCONF_DAGENT_SSLKEY_FILE=/kopano/ssl/kopano_dagent.pem
-      - SERVICE_TO_START=dagent
-      - TZ=${TZ}
-    env_file:
-      - kopano_dagent.env
-    networks:
-      - kopano-net
-    tmpfs:
-      - /tmp
-
-  kopano_spooler:
-    image: ${docker_repo:-zokradonh}/kopano_core:${CORE_VERSION:-latest}
-    read_only: true
-    restart: unless-stopped
-    hostname: spooler # hostname and domainname may need to be commented on some platforms (e.g. ChromeOS)
+  #--------------------------------------------------------------------------------------------------------------------
+  # Traefik
+  #--------------------------------------------------------------------------------------------------------------------
+  traefik:
+    container_name: traefik
+    hostname: traefik
     domainname: ${LDAP_DOMAIN}
-    depends_on:
-      - kopano_server
-    volumes:
-      - /etc/machine-id:/etc/machine-id
-      - /etc/machine-id:/var/lib/dbus/machine-id
-      - kopanosocket/:/run/kopano
-      - kopanossl/:/kopano/ssl
-    environment:
-      - KCCONF_SPOOLER_LOG_LEVEL=3
-      - KCCONF_SPOOLER_LOG_TIMESTAMP=0
-      - KCCONF_SPOOLER_SMTP_SERVER=mail
-      - KCCONF_SPOOLER_SMTP_PORT=25
-      - KCCONF_SPOOLER_SSLKEY_FILE=/kopano/ssl/kopano_spooler.pem
-      - SERVICE_TO_START=spooler
-      - TZ=${TZ}
-    env_file:
-      - kopano_spooler.env
-    networks:
-      - kopano-net
-    tmpfs:
-      - /tmp
+    image: traefik:2.3.7
+    restart: always
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+      - traefik.enable=true
+      - traefik.http.routers.traefik.rule=Host(`docker01-traefik.${LDAP_DOMAIN}`)
+      - traefik.http.routers.traefik.entrypoints=https
+      - traefik.http.routers.traefik.tls=true
+      - traefik.http.routers.traefik.service=api@internal
 
-  kopano_gateway:
-    image: ${docker_repo:-zokradonh}/kopano_core:${CORE_VERSION:-latest}
-    read_only: true
-    restart: unless-stopped
-    depends_on:
-      - kopano_server
-    volumes:
-      - /etc/machine-id:/etc/machine-id
-      - /etc/machine-id:/var/lib/dbus/machine-id
-      - kopanosocket/:/run/kopano
-      - kopanossl/:/kopano/ssl
+      - traefik.http.routers.traefik-http-catchall.rule=hostregexp(`{host:.+}`)
+      - traefik.http.routers.traefik-http-catchall.entrypoints=http
+      - traefik.http.routers.traefik-http-catchall.middlewares=traefik-redirect-to-https@docker
+      - traefik.http.middlewares.traefik-redirect-to-https.redirectscheme.scheme=https
+    command:
+      # - --log.level=DEBUG
+      - --api=true
+      - --api.dashboard=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.http.address=:80
+      - --entryPoints.https.address=:443
+      - --providers.file.directory=/config/
+      - --providers.file.watch=true
+      - --metrics.prometheus=false
+    ports:
+      - 80:80
+      - 443:443
     environment:
-      - KCCONF_GATEWAY_IMAP_LISTEN=0.0.0.0:143
-      - KCCONF_GATEWAY_LOG_LEVEL=3
-      - KCCONF_GATEWAY_LOG_TIMESTAMP=0
-      - KCCONF_GATEWAY_SERVER_SOCKET=http://kopano_server:236/
-      - SERVICE_TO_START=gateway
-      - TZ=${TZ}
-    env_file:
-      - kopano_gateway.env
-    networks:
-      - kopano-net
-    tmpfs:
-      - /tmp
-
-  kopano_ical:
-    image: ${docker_repo:-zokradonh}/kopano_core:${CORE_VERSION:-latest}
-    read_only: true
-    restart: unless-stopped
-    depends_on:
-      - kopano_server
+      TZ: Europe/Berlin
     volumes:
-      - /etc/machine-id:/etc/machine-id
-      - /etc/machine-id:/var/lib/dbus/machine-id
-      - kopanosocket/:/run/kopano
-      - kopanossl/:/kopano/ssl
-    environment:
-      - KCCONF_ICAL_ICAL_LISTEN=0.0.0.0:8080
-      - KCCONF_ICAL_LOG_LEVEL=3
-      - KCCONF_ICAL_LOG_TIMESTAMP=0
-      - KCCONF_ICAL_SERVER_SOCKET=http://kopano_server:236/
-      - SERVICE_TO_START=ical
-      - TZ=${TZ}
-    env_file:
-      - kopano_ical.env
-    networks:
-      - kopano-net
-      - web-net
-    tmpfs:
-      - /tmp
-
-  kopano_monitor:
-    image: ${docker_repo:-zokradonh}/kopano_core:${CORE_VERSION:-latest}
-    read_only: true
-    restart: unless-stopped
-    depends_on:
-      - kopano_server
-    volumes:
-      - /etc/machine-id:/etc/machine-id
-      - /etc/machine-id:/var/lib/dbus/machine-id
-      - kopanosocket/:/run/kopano
-      - kopanossl/:/kopano/ssl
-    environment:
-      - SERVICE_TO_START=monitor
-      - KCCONF_MONITOR_LOG_LEVEL=3
-      - KCCONF_MONITOR_LOG_TIMESTAMP=0
-      - TZ=${TZ}
-    env_file:
-      - kopano_monitor.env
-    networks:
-      - kopano-net
-    tmpfs:
-      - /tmp
-
-  kopano_search:
-    image: ${docker_repo:-zokradonh}/kopano_core:${CORE_VERSION:-latest}
-    read_only: true
-    restart: unless-stopped
-    container_name: ${COMPOSE_PROJECT_NAME}_search
-    depends_on:
-      - kopano_server
-    volumes:
-      - /etc/machine-id:/etc/machine-id
-      - /etc/machine-id:/var/lib/dbus/machine-id
-      - kopanodata/:/kopano/data
-      - kopanosocket/:/run/kopano
-      - kopanossl/:/kopano/ssl
-    environment:
-      - SERVICE_TO_START=search
-      - KCCONF_SEARCH_LOG_LEVEL=3
-      - KCCONF_SEARCH_LOG_TIMESTAMP=0
-      - KCCONF_SEARCH_INDEX_PATH=/kopano/data/search/
-      - TZ=${TZ}
-    env_file:
-      - kopano_search.env
-    networks:
-      - kopano-net
-    tmpfs:
-      - /tmp
-
-  kopano_konnect:
-    image: ${docker_repo:-zokradonh}/kopano_konnect:${KONNECT_VERSION:-latest}
-    read_only: true
-    restart: unless-stopped
-    depends_on:
-      - kopano_ssl
-      - web
-      # to be useful Konnect also needs a running kopano_server, but this dependency cannot be added here since this would be a circular dependency
-    volumes:
-      - /etc/machine-id:/etc/machine-id
-      - /etc/machine-id:/var/lib/dbus/machine-id
-      - kopanosocket/:/run/kopano
-      - kopanossl/:/kopano/ssl
-    environment:
-      - allow_client_guests=yes
-      - allow_dynamic_client_registration=yes
-      - eckey=/kopano/ssl/meet-kwmserver.pem
-      - ecparam=/kopano/ssl/ecparam.pem
-      - encryption_secret_key=/kopano/ssl/konnectd-encryption.key
-      - FQDN=${FQDN}
-      - identifier_registration_conf=/kopano/ssl/konnectd-identifier-registration.yaml
-      - identifier_scopes_conf=/etc/kopano/konnectd-identifier-scopes.yaml
-      - signing_private_key=/kopano/ssl/konnectd-tokens-signing-key.pem
-      - validation_keys_path=/kopano/ssl/konnectkeys
-    env_file:
-      - kopano_konnect.env
-    networks:
-      - kopano-net
-      - web-net
-    tmpfs:
-      - /tmp
-
-  kopano_kwmserver:
-    image: ${docker_repo:-zokradonh}/kopano_kwmserver:${KWM_VERSION:-latest}
-    read_only: true
-    restart: unless-stopped
-    command: wrapper.sh
-    depends_on:
-      - kopano_kapi
-      - kopano_konnect
-    environment:
-      - enable_guest_api=yes
-      - INSECURE=${INSECURE}
-      - oidc_issuer_identifier=https://${FQDN}
-      - public_guest_access_regexp=^group/public/.*
-      - registration_conf=/kopano/ssl/konnectd-identifier-registration.yaml
-      - turn_service_credentials_password=${TURN_PASSWORD:-}
-      - turn_service_credentials_user=${TURN_USER:-}
-    env_file:
-      - kopano_kwmserver.env
-    volumes:
-      - /etc/machine-id:/etc/machine-id
-      - /etc/machine-id:/var/lib/dbus/machine-id
-      - kopanossl/:/kopano/ssl
-    networks:
-      - web-net
-    tmpfs:
-      - /tmp
-
-  kopano_meet:
-    image: ${docker_repo:-zokradonh}/kopano_meet:${MEET_VERSION:-latest}
-    read_only: true
-    restart: unless-stopped
-    environment:
-      - KCCONF_MEET_disableFullGAB=false
-      - KCCONF_MEET_guests_enabled=true
-      - KCCONF_MEET_minimumVersion=20200121 # can be used force updates of Meet
-      - KCCONF_MEET_oidc_useImplicitFlow=true # workaround for guest login with meet https://stash.kopano.io/projects/KWM/repos/meet/pull-requests/102/overview
-    env_file:
-      - kopano_meet.env
-    depends_on:
-      - kopano_kapi
-      - kopano_konnect
-      - kopano_kwmserver
-      - web
-    volumes:
-      - /etc/machine-id:/etc/machine-id
-      - /etc/machine-id:/var/lib/dbus/machine-id
-    networks:
-      - web-net
-    tmpfs:
-      - /tmp
-
-  kopano_scheduler:
-    image: ${docker_repo:-zokradonh}/kopano_scheduler:${SCHEDULER_VERSION:-latest}
-    read_only: true
-    restart: "no"
-    container_name: ${COMPOSE_PROJECT_NAME}_scheduler
-    networks:
-      - kopano-net
-      - web-net
-    depends_on:
-      - kopano_server
-      - kopano_zpush
-    environment:
-      - CRON_KOPANOUSERS=10 * * * * docker exec kopano_server kopano-admin --sync
-      - CRON_ZPUSHGAB=0 22 * * * docker exec kopano_zpush z-push-gabsync -a sync
-      - CRONDELAYED_KBACKUP=30 1 * * * docker run --rm -it --volumes-from kopano_server -v /root/kopano-backup:/kopano/path ${docker_repo:-zokradonh}/kopano_utils:${CORE_VERSION:-latest} kopano-backup -h
-      - CRONDELAYED_SOFTDELETE=30 2 * * * docker exec kopano_server kopano-admin --purge-softdelete 30
-      - TZ=${TZ}
-    env_file:
-      - kopano_scheduler.env
-    volumes:
+      - ${DATA_DIR}/traefik/config:/config/
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    tmpfs:
-      - /tmp
+    networks:
+      - traefik-proxy
+    extra_hosts: 
+      - host.docker.internal:172.17.0.1
 
+  #--------------------------------------------------------------------------------------------------------------------
+  # LDAP
+  #--------------------------------------------------------------------------------------------------------------------
+  ldap:
+    image: osixia/openldap:latest
+    hostname: ldap
+    container_name: ldap
+    domainname: ${LDAP_DOMAIN}
+    restart: unless-stopped
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+    environment:
+      - LDAP_ADMIN_PASSWORD=${LDAP_ADMIN_PASSWORD}
+      - LDAP_BASE_DN=${LDAP_BASE_DN}
+      - LDAP_DOMAIN=${LDAP_DOMAIN}
+      - LDAP_LOG_LEVEL=0
+      - LDAP_ORGANISATION=${LDAP_ORGANISATION}
+      - LDAP_READONLY_USER_PASSWORD=${LDAP_READONLY_USER_PASSWORD}
+      - LDAP_READONLY_USER=true
+    command: "--copy-service"
+    volumes:
+      - ./ldap/schema:/container/service/slapd/assets/config/bootstrap/schema
+      - ./ldap/ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom
+      - ${DATA_DIR}/ldap/data:/var/lib/ldap
+      - ${DATA_DIR}/slapd/data:/etc/ldap/slapd.d
+    healthcheck:
+      test: ["CMD-SHELL", 'ldapsearch -H ldap://127.0.0.1:389 -D cn=readonly,$$LDAP_BASE_DN -b cn=readonly,$$LDAP_BASE_DN -w $$LDAP_READONLY_USER_PASSWORD']
+      interval: 1m
+      timeout: 10s
+    ports:
+      - 389:389
+    networks:
+      - traefik-proxy
 
-volumes:
-  kdavstates:
-  kopanodata:
-  kopanograpi:
-  kopanolicenses:
-  kopanosocket:
-  kopanossl:
-  kopanowebapp:
-  web:
-  zpushstates:
-
-networks:
-  kopano-net:
-    driver: bridge
-  web-net:
+  traefik-proxy:
+    external: true

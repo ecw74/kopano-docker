@@ -28,7 +28,7 @@ DOWNLOAD_COMMUNITY_PACKAGES := 1
 KOPANO_UID := 999
 KOPANO_GID := 999
 
-DOCKERCOMPOSE_FILE := docker-compose.yml -f docker-compose.db.yml -f docker-compose.ldap.yml -f docker-compose.mail.yml
+DOCKERCOMPOSE_FILE := docker-compose.yml -f docker-compose.db.yml -f -f docker-compose.mail.yml
 TAG_FILE := build.tags
 -include .env
 export
@@ -144,12 +144,6 @@ build-kwmbridge:
 build-kwmserver:
 	component=kwmserver make build-simple
 
-build-ldap:
-	component=ldap make build-simple
-
-build-ldap-demo: build-ldap
-	component=ldap_demo make build-simple
-
 build-meet: build-base
 	component=meet make build
 
@@ -252,13 +246,6 @@ tag-kwmserver:
 	$(shell docker inspect --format '{{ index .Config.Labels "org.label-schema.version"}}' $(docker_repo)/kopano_kwmserver))
 	component=kwmserver make tag-container
 
-tag-ldap:
-	$(eval ldap_version := \
-	$(shell docker inspect --format '{{ index .Config.Labels "org.label-schema.version"}}' $(docker_repo)/kopano_ldap))
-	component=ldap make tag-container
-	$(eval ldap_demo_version := $(ldap_version))
-	component=ldap_demo make tag-container
-
 tag-meet:
 	$(eval meet_version := \
 	$(shell docker inspect --format '{{ index .Config.Labels "org.label-schema.version"}}' $(docker_repo)/kopano_meet | cut -d+ -f1))
@@ -348,12 +335,6 @@ publish-kwmbridge: tag-kwmbridge
 
 publish-kwmserver: tag-kwmserver
 	component=kwmserver make publish-container
-
-publish-ldap: tag-ldap
-	component=ldap make publish-container
-
-publish-ldap-demo: tag-ldap
-	component=ldap_demo make publish-container
 
 publish-meet: tag-meet
 	component=meet make publish-container
