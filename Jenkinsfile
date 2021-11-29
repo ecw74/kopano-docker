@@ -27,16 +27,18 @@ pipeline {
     }
 
     stage('Publish') {
-      steps {
-		
-        sh 'make publish-base'
-        sh 'make publish-ssl'
-        sh 'make publish-core'
-        sh 'make publish-scheduler'
-        sh 'make publish-webapp'
-        sh 'make publish-web'
-        sh 'make publish-zpush'
-      }
+      when {
+        expression { env.BRANCH_NAME == 'master' }
+        }
+        steps {
+          sh 'make publish-base'
+          sh 'make publish-ssl'
+          sh 'make publish-core'
+          sh 'make publish-scheduler'
+          sh 'make publish-webapp'
+          sh 'make publish-web'
+          sh 'make publish-zpush'
+          }
     }
   }
 }
