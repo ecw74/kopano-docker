@@ -50,10 +50,10 @@ services:
   #--------------------------------------------------------------------------------------------------------------------
   # LDAP
   #--------------------------------------------------------------------------------------------------------------------
-  ldap:
+  kopano_ldap:
     image: osixia/openldap:latest
-    hostname: ldap
-    container_name: ldap
+    hostname: kopano_ldap
+    container_name: kopano_ldap
     domainname: ${LDAP_DOMAIN}
     restart: unless-stopped
     labels:

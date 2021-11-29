@@ -41,7 +41,7 @@ if [ ! -e /etc/machine-id ]; then
 fi
 
 echo "Creating individual env files for containers (if they do not exist already)"
-for dockerenv in ldap password-self-service mail db kopano_ssl kopano_server kopano_webapp kopano_zpush kopano_grapi kopano_kapi kopano_dagent kopano_spooler kopano_gateway kopano_ical kopano_monitor kopano_scheduler kopano_search kopano_konnect kopano_kwmbridge kopano_kwmserver kopano_meet kopano_kapps; do
+for dockerenv in password-self-service mail db kopano_ssl kopano_server kopano_webapp kopano_zpush kopano_grapi kopano_kapi kopano_dagent kopano_spooler kopano_gateway kopano_ical kopano_monitor kopano_scheduler kopano_search kopano_konnect kopano_kwmbridge kopano_kwmserver kopano_meet kopano_kapps; do
 	touch ./"$dockerenv".env
 done
 
@@ -133,42 +133,14 @@ if [ ! -e ./.env ]; then
 	read -r -p "LDAP server to be used (defaults to the bundled OpenLDAP) [$value_default]: " new_value
 	LDAP_SERVER=${new_value:-$value_default}
 
-	if [ "$LDAP_SERVER" != "$value_default" ]; then
-		# We don't need an admin password in case we don't use the bundled LDAP server
-		LDAP_ADMIN_PASSWORD=""
-
-		value_default="$LDAP_BASE_DN"
-		read -r -p "LDAP search base [$value_default]: " new_value
-		LDAP_SEARCH_BASE=${new_value:-$value_default}
-
-		value_default="cn=readonly,$LDAP_BASE_DN"
-		read -r -p "LDAP bind user (needs read permissions) [$value_default]: " new_value
-		LDAP_BIND_DN=${new_value:-$value_default}
-
-		value_default="kopano123"
-		read -r -p "LDAP bind password to be used [$value_default]: " new_value
-		LDAP_BIND_PW=${new_value:-$value_default}
-
-		PRINT_SETUP_SUCCESS="$PRINT_SETUP_SUCCESS \n!! You have specified the LDAP server '${LDAP_SERVER}', don't forget to remove the bundled ldap and ldap-admin services in docker-compose.yml\n"
-	else
-		value_default="yes"
-		read -r -p "Use bundled LDAP with demo users? yes/no [$value_default]: " new_value
-		LDAP_CONTAINER_QUESTION=${new_value:-$value_default}
-
-		if [ "${LDAP_CONTAINER_QUESTION}" == "yes" ]; then
-			LDAP_CONTAINER="kopano_ldap_demo"
-		else
-			LDAP_CONTAINER="kopano_ldap"
-		fi
-
-		LDAP_ADMIN_PASSWORD=$(random_string)
-		LDAP_SEARCH_BASE="$LDAP_BASE_DN"
-		LDAP_BIND_DN="cn=readonly,$LDAP_BASE_DN"
-		LDAP_BIND_PW=$(random_string)
-	fi
+	LDAP_CONTAINER="kopano_ldap"
+	LDAP_ADMIN_PASSWORD=$(random_string)
+	LDAP_SEARCH_BASE="$LDAP_BASE_DN"
+	LDAP_BIND_DN="cn=readonly,$LDAP_BASE_DN"
+	LDAP_BIND_PW=$(random_string)
 
 	# TODO get locale from system
-	value_default="en_US.UTF-8"
+	value_default="de_DE.UTF-8"
 	read -r -p "Language to be used for new mailboxes (needs to be available as a locale in the container) [$value_default]: " new_value
 	MAILBOXLANG=${new_value:-$value_default}
 
