@@ -2,7 +2,7 @@
 ARG docker_repo=zokradonh
 FROM composer:1.9 as builder
 
-RUN git clone --depth 1 https://stash.kopano.io/scm/kc/kdav.git /usr/share/kopano-kdav
+RUN git clone --depth 1 https://github.com/Kopano-dev/kdav.git /usr/share/kopano-kdav
 WORKDIR /usr/share/kopano-kdav
 RUN composer install
 
