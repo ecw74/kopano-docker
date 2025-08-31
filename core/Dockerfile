@@ -46,6 +46,8 @@ RUN --mount=type=secret,id=repocred,target=/etc/apt/auth.conf.d/kopano.conf \
     # apt key for this repo has already been installed in base
     echo "deb [${KOPANO_REPOSITORY_FLAGS}] ${KOPANO_CORE_REPOSITORY_URL} ./" > /etc/apt/sources.list.d/kopano.list; \
     echo "deb [${KOPANO_REPOSITORY_FLAGS}] ${KOPANO_KAPPS_REPOSITORY_URL} ./" >> /etc/apt/sources.list.d/kopano.list; \
+    sed -i s/deb.debian.org/archive.debian.org/g /etc/apt/sources.list \
+    sed -i s/security.debian.org/archive.debian.org/g /etc/apt/sources.list \
     # install
     apt-get update && \
     set -x && \
