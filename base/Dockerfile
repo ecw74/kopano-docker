@@ -30,8 +30,8 @@ RUN mkdir -p /kopano/repo /kopano/data /kopano/helper /kopano/path
 WORKDIR /kopano/repo
 
 # install basics
-RUN sed -i s/deb.debian.org/archive.debian.org/g /etc/apt/sources.list && \
-    sed -i s/security.debian.org/archive.debian.org/g /etc/apt/sources.list && \
+RUN sed -i -e 's/deb.debian.org/archive.debian.org/' /etc/apt/sources.list && \
+    sed -i -e 's/security.debian.org/archive.debian.org/' /etc/apt/sources.list && \
     apt-get update && \
     apt-get install --no-install-recommends -y \
         apt-transport-https \
